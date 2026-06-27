@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <title>LEDマトリクス</title>
+    <link rel="icon" href="/chiba.png" />
+    <meta charset="UTF-8" />
+    <style>
+      body,
+      p {
+        margin: 0;
+        font-size: 16px;
+        line-height: 1;
+      }
+      #canvas {
+        background: black;
+        color: white;
+        width: 130px;
+        height: 34px;
+        overflow: hidden;
+        white-space: nowrap;
+        position: relative; /* 子要素の基準線 */
+        padding: 2px 0;
+      }
+      .scroll_track {
+        display: inline-block;
+        position: absolute;
+        left: 130px; /* 初期位置：枠の右端 */
+        top: 18px; /* 時計の下あたりに配置（環境に合わせて調整してください） */
+        color: #f3a600;
+        white-space: nowrap;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="canvas">
+      <div style="display: flex; justify-content: space-between">
+        <p>エノキ電気</p>
+        <p id="clock" style="color: #11ca00">00:00</p>
+      </div>
+      <p class="scroll_track" id="scrollText">ニュース取得中…</p>
+    </div>
+
+    <script>
+      var CANVAS_WIDTH = 130
+      var currentX = CANVAS_WIDTH // 現在のX座標（右端からスタート）
+      var scrollIntervalId = null
+      var trackElement = null
+
+      // JSでテキストを1ピクセルずつ左に動かす関数
+      function startScroll() {
+        // すでに動いているタイマーがあれば一旦クリア
+        if (scrollIntervalId) {
+          clearInterval(scrollIntervalId)
+        }
+
+        trackElement = document.getElementById('scrollText')
+
+        // 1000ms / 30fps = 約33ミリ秒ごとに位置を更新（なめらかに動かす）
+        scrollIntervalId = setInterval(function () {
+          var textWidth = trackElement.offsetWidth
+
+          currentX -= 1 // 1ピクセル左へ移動（数値を大きくすると早くなります）
+
+          // 画面外（テキスト幅分）まで左に消えたら、右端（130px）に戻す
+          if (currentX < -textWidth) {
+            currentX = CANVAS_WIDTH
+            // 1周スクロールが終わるたびにRSSを再取得
+            fetchAndUpdateRss(trackElement)
+          }
+
+          // スタイルに反映
+          trackElement.style.left = currentX + 'px'
+        }, 33)
+      }
+
+      // RSSを取得してテキストを更新する関数
+      function fetchAndUpdateRss(track) {
+        var xhr = new XMLHttpRequest()
+        xhr.open('GET', '/getRss.php', true)
+        xhr.onreadystatechange = function () {
+          if (xhr.readyState === 4 && xhr.status === 200) {
+            try {
+              var data = JSON.parse(xhr.responseText)
+              if (data && data.channel && data.channel.item) {
+                var titles = []
+                for (var i = 0; i < data.channel.item.length; i++) {
+                  titles.push(data.channel.item[i].title)
+                }
+                track.innerHTML = titles.join(' | ')
+              }
+            } catch (error) {
+              track.innerHTML = 'RSS解析エラー'
+            }
+          }
+        }
+        xhr.send()
+      }
+
+      // ページ読み込み完了時の処理
+      window.onload = function () {
+        var track = document.getElementById('scrollText')
+
+        // 初回RSS取得
+        fetchAndUpdateRss(track)
+
+        // スクロールアニメーション開始
+        startScroll()
+      }
+
+      // 時計の更新
+      function updateClock() {
+        var now = new Date()
+        var hours = now.getHours()
+        var minutes = now.getMinutes()
+
+        if (hours < 10) {
+          hours = '0' + hours
+        }
+        if (minutes < 10) {
+          minutes = '0' + minutes
+        }
+
+        var clockEl = document.getElementById('clock')
+        if (clockEl) {
+          clockEl.innerHTML = hours + ':' + minutes
+        }
+      }
+
+      // 1秒ごとに実行
+      setInterval(updateClock, 1000)
+      updateClock()
+    </script>
+  </body>
+</html>
