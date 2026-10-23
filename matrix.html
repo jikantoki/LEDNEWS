@@ -19,17 +19,25 @@
         background: black;
         color: white;
         width: 130px;
-        height: 34px;
+        height: 68px;
         overflow: hidden;
         white-space: nowrap;
-        position: relative; /* 子要素の基準線 */
+        position: relative;
         padding: 2px 0;
       }
       .scroll_track {
         display: inline-block;
         position: absolute;
-        left: 130px; /* 初期位置：枠の右端 */
-        top: 18px; /* 時計の下あたりに配置（環境に合わせて調整してください） */
+        left: 130px;
+        top: 18px;
+        color: #f3a600;
+        white-space: nowrap;
+      }
+      .scroll_play_track {
+        display: inline-block;
+        position: absolute;
+        left: 130px;
+        top: 50px;
         color: #f3a600;
         white-space: nowrap;
       }
@@ -42,52 +50,56 @@
         <p id="clock" style="color: #11ca00">00:00</p>
       </div>
       <p class="scroll_track" id="scrollText">ニュース取得中…</p>
+      <div style="height: 15px"></div>
+      <p>ラジオ再生情報</p>
+      <div style="height: 2px"></div>
+      <p class="scroll_play_track" id="playingText">再生情報取得中…</p>
     </div>
 
     <script>
       var CANVAS_WIDTH = 130
-      var currentX = CANVAS_WIDTH // 現在のX座標（右端からスタート）
-      var scrollIntervalId = null
-      var trackElement = null
 
-      // JSでテキストを1ピクセルずつ左に動かす関数
-      function startScroll() {
-        // すでに動いているタイマーがあれば一旦クリア
-        if (scrollIntervalId) {
-          clearInterval(scrollIntervalId)
-        }
+      // 汎用スクロール関数：要素ごとに独立した状態（位置、タイマー）をクロージャで保持する
+      function initScroller(elementId, fetchCallback) {
+        var el = document.getElementById(elementId)
+        if (!el) return
 
-        trackElement = document.getElementById('scrollText')
+        var currentX = CANVAS_WIDTH
+        var intervalId = null
 
-        // 1000ms / 30fps = 約33ミリ秒ごとに位置を更新（なめらかに動かす）
-        scrollIntervalId = setInterval(function () {
-          var textWidth = trackElement.offsetWidth
+        function step() {
+          var textWidth = el.offsetWidth
+          currentX -= 1
 
-          currentX -= 1 // 1ピクセル左へ移動（数値を大きくすると早くなります）
-
-          // 画面外（テキスト幅分）まで左に消えたら、右端（130px）に戻す
           if (currentX < -textWidth) {
             currentX = CANVAS_WIDTH
-            // 1周スクロールが終わるたびにRSSを再取得
-            fetchAndUpdateRss(trackElement)
+            if (typeof fetchCallback === 'function') {
+              fetchCallback(el)
+            }
           }
+          el.style.left = currentX + 'px'
+        }
 
-          // スタイルに反映
-          trackElement.style.left = currentX + 'px'
-        }, 33)
+        // 初期データ取得
+        if (typeof fetchCallback === 'function') {
+          fetchCallback(el)
+        }
+
+        // 33ms周期でアニメーション実行
+        intervalId = setInterval(step, 33)
       }
 
-      // RSSを取得してテキストを更新する関数
+      // RSSニュース取得処理
       function fetchAndUpdateRss(track) {
-        var xhr = new XMLHttpRequest()
+        let xhr = new XMLHttpRequest()
         xhr.open('GET', '/getRss.php', true)
         xhr.onreadystatechange = function () {
           if (xhr.readyState === 4 && xhr.status === 200) {
             try {
-              var data = JSON.parse(xhr.responseText)
+              let data = JSON.parse(xhr.responseText)
               if (data && data.channel && data.channel.item) {
-                var titles = []
-                for (var i = 0; i < data.channel.item.length; i++) {
+                let titles = []
+                for (let i = 0; i < data.channel.item.length; i++) {
                   titles.push(data.channel.item[i].title)
                 }
                 track.innerHTML = titles.join(' | ')
@@ -100,29 +112,32 @@
         xhr.send()
       }
 
-      // ページ読み込み完了時の処理
-      window.onload = function () {
-        var track = document.getElementById('scrollText')
-
-        // 初回RSS取得
-        fetchAndUpdateRss(track)
-
-        // スクロールアニメーション開始
-        startScroll()
+      // 再生情報取得処理
+      function fetchAndUpdatePlaying(track) {
+        let xhr = new XMLHttpRequest()
+        xhr.open('GET', '/getPlaying.php', true)
+        xhr.onreadystatechange = function () {
+          if (xhr.readyState === 4 && xhr.status === 200) {
+            try {
+              let data = JSON.parse(xhr.responseText)
+              let nowPlaying = data.now_playing.song.text
+              track.innerHTML = nowPlaying
+            } catch (error) {
+              track.innerHTML = 'Azuracast解析エラー'
+            }
+          }
+        }
+        xhr.send()
       }
 
-      // 時計の更新
+      // 時計更新処理
       function updateClock() {
         var now = new Date()
         var hours = now.getHours()
         var minutes = now.getMinutes()
 
-        if (hours < 10) {
-          hours = '0' + hours
-        }
-        if (minutes < 10) {
-          minutes = '0' + minutes
-        }
+        if (hours < 10) hours = '0' + hours
+        if (minutes < 10) minutes = '0' + minutes
 
         var clockEl = document.getElementById('clock')
         if (clockEl) {
@@ -130,9 +145,17 @@
         }
       }
 
-      // 1秒ごとに実行
-      setInterval(updateClock, 1000)
-      updateClock()
+      window.onload = function () {
+        // ニュースのスクロール初期化
+        initScroller('scrollText', fetchAndUpdateRss)
+
+        // 再生情報のスクロール初期化
+        initScroller('playingText', fetchAndUpdatePlaying)
+
+        // 時計更新
+        setInterval(updateClock, 1000)
+        updateClock()
+      }
     </script>
   </body>
 </html>
