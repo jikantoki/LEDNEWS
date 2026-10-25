@@ -41,6 +41,22 @@
         color: #f3a600;
         white-space: nowrap;
       }
+      .alert {
+        position: fixed;
+        left: 0;
+        top: 34px;
+        width: 130px;
+        height: 34px;
+        color: red;
+        white-space: nowrap;
+        background: black;
+        align-self: baseline;
+        display: flex;
+        flex-direction: column;
+        justify-content: center; /* 縦方向の中央揃え */
+        align-items: center; /* 横方向の中央揃え（必要に応じて） */
+        opacity: 0;
+      }
     </style>
   </head>
   <body>
@@ -54,6 +70,7 @@
       <p>ラジオ再生情報</p>
       <div style="height: 2px"></div>
       <p class="scroll_play_track" id="playingText">再生情報取得中…</p>
+      <p class="alert" id="passTrain">電車が通過します</p>
     </div>
 
     <script>
@@ -91,8 +108,9 @@
 
       // RSSニュース取得処理
       function fetchAndUpdateRss(track) {
+        let unixTime = new Date().getTime()
         let xhr = new XMLHttpRequest()
-        xhr.open('GET', '/getRss.php', true)
+        xhr.open('GET', '/getRss.php?t=' + unixTime, true)
         xhr.onreadystatechange = function () {
           if (xhr.readyState === 4 && xhr.status === 200) {
             try {
@@ -114,13 +132,18 @@
 
       // 再生情報取得処理
       function fetchAndUpdatePlaying(track) {
-        let xhr = new XMLHttpRequest()
-        xhr.open('GET', '/getPlaying.php', true)
+        let unixTime = new Date().getTime()
+        var xhr = new XMLHttpRequest()
+        xhr.open('GET', '/getPlaying.php?t=' + unixTime, true)
         xhr.onreadystatechange = function () {
           if (xhr.readyState === 4 && xhr.status === 200) {
             try {
               let data = JSON.parse(xhr.responseText)
-              let nowPlaying = data.now_playing.song.text
+              let nowPlaying =
+                '' +
+                data.now_playing.song.artist +
+                ' - ' +
+                data.now_playing.song.title
               track.innerHTML = nowPlaying
             } catch (error) {
               track.innerHTML = 'Azuracast解析エラー'
@@ -155,6 +178,46 @@
         // 時計更新
         setInterval(updateClock, 1000)
         updateClock()
+
+        // アラートの点滅処理
+        var alerts = document.querySelectorAll('.alert')
+
+        // 古い環境では alerts.forEach が使えないため、通常の for ループを使用
+        for (var i = 0; i < alerts.length; i++) {
+          ;(function (alertElement) {
+            // 1. 各要素が持っている元の文字色を取得して保存しておく
+            var originalColor = alertElement.style.color || 'red' // スタイルが空ならデフォルト色を設定
+            var visible = true
+
+            // 500ミリ秒（0.5秒）ごとに文字色を切り替えるタイマー
+            setInterval(function () {
+              if (visible) {
+                // 文字色を「透明」にする（背景色は残る）
+                alertElement.style.color = 'transparent'
+              } else {
+                // 文字色を「元の色」に戻す
+                alertElement.style.color = originalColor
+              }
+              visible = !visible
+            }, 500)
+          })(alerts[i])
+        }
+
+        function whileAlert() {
+          var min = 1 * 60 * 1000
+          var max = 10 * 60 * 1000
+          var randomTime = Math.floor(Math.random() * (max - min + 1)) + min
+
+          setTimeout(function () {
+            const element = document.getElementById('passTrain')
+            element.style.opacity = 1
+            setTimeout(function () {
+              element.style.opacity = 0
+              whileAlert()
+            }, 30 * 1000)
+          }, randomTime)
+        }
+        whileAlert()
       }
     </script>
   </body>
