@@ -139,11 +139,16 @@
           if (xhr.readyState === 4 && xhr.status === 200) {
             try {
               let data = JSON.parse(xhr.responseText)
-              let nowPlaying =
-                '' +
-                data.now_playing.song.artist +
-                ' - ' +
-                data.now_playing.song.title
+              let nowPlaying = ''
+              if (data.now_playing.song.artist) {
+                nowPlaying =
+                  '' +
+                  data.now_playing.song.artist +
+                  ' - ' +
+                  data.now_playing.song.title
+              } else {
+                nowPlaying = data.now_playing.song.text
+              }
               track.innerHTML = nowPlaying
             } catch (error) {
               track.innerHTML = 'Azuracast解析エラー'
